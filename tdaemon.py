@@ -22,10 +22,10 @@ import re
 import subprocess
 
 SPECIAL_CHARS_REGEX_PATTERN = r'[#&;`|*?~<>^()\[\]{}$\\]+' 
-IGNORE_EXTENSIONS = ('pyc', 'pyo')
+IGNORE_EXTENSIONS = ('pyc', 'pyo', 'swp')
 IGNORE_DIRS = ('.bzr', '.git', '.hg', '.darcs', '.svn', '.tox')
 IMPLEMENTED_TEST_PROGRAMS = ('nose', 'nosetests', 'django', 'py', 'symfony',
-    'jelix', 'phpunit', 'sphinx', 'tox'
+    'jelix', 'phpunit', 'sphinx', 'tox', 'cmd'
 )
 
 # -------- Exceptions
@@ -63,7 +63,7 @@ class Watcher(object):
     file_list = {}
     debug = False
 
-    def __init__(self, file_path, test_program, debug=False, custom_args='', 
+    def __init__(self, file_path, test_program, cmd='', debug=False, custom_args='', 
         ignore_dirs=None, quiet=False):
         # Safe filter
         custom_args = escapearg(custom_args)
@@ -77,12 +77,13 @@ class Watcher(object):
         self.custom_args = custom_args
         self.quiet = quiet
 
+        self.cmd = self.get_cmd(cmd)
+
         # check configuration
         self.check_configuration(file_path, test_program, custom_args)
 
         self.check_dependencies()
         self.debug = debug
-        self.cmd = self.get_cmd()
 
 
     def check_configuration(self, file_path, test_program, custom_args):
@@ -97,11 +98,12 @@ class Watcher(object):
             raise InvalidTestProgram('The `%s` is unknown, or not yet implemented. Please chose another one.' % test_program)
 
         if custom_args:
-            if not self.quiet and not ask("WARNING!!!\nYou are about to run the following command\n\n   $ %s\n\nAre you sure you still want to proceed [y/N]? " % self.get_cmd()):
+            if not self.quiet and not ask("WARNING!!!\nYou are about to run the following command\n\n   $ %s\n\nAre you sure you still want to proceed [y/N]? " % self.cmd):
                 raise CancelDueToUserRequest('Test cancelled...')
 
     def check_dependencies(self):
         "Checks if the test program is available in the python environnement"
+        return  # This is because we aren't using any of those
         if self.test_program == 'nose':
             try:
                 import nose
@@ -129,7 +131,7 @@ class Watcher(object):
                 sys.exit('tox is not available on your system. Please install it and try to run it again')
 
 
-    def get_cmd(self):
+    def get_cmd(self, test_cmd):
         """Returns the full command to be executed at runtime"""
 
         cmd = None
@@ -154,6 +156,10 @@ class Watcher(object):
             cmd = 'make html'
         elif self.test_program == 'tox':
             cmd = 'tox'
+        elif self.test_program == 'cmd':
+            cmd = test_cmd
+            if not cmd:
+                raise InvalidTestProgram("There was no test command specified. Please provide a command to execute.")
 
         if not cmd:
             raise InvalidTestProgram("The test program %s is unknown. Valid options are: `nose`, `django` and `py`" % self.test_program)
@@ -244,7 +250,10 @@ def main(prog_args=None):
     parser.add_option("-t", "--test-program", dest="test_program",
         default="nose", help="specifies the test-program to use. Valid values"
         " include `nose` (or `nosetests`), `django`, `py` (for `py.test`), "
-        '`symfony`, `jelix` `phpunit` and `tox`')
+        '`symfony`, `jelix` `phpunit`, `tox` and `cmd`')
+    parser.add_option("-c", "--cmd", dest="cmd", default='',
+        type="str",
+        help="Custom command to trigger.")
     parser.add_option("-d", "--debug", dest="debug", action="store_true",
         default=False)
     parser.add_option('-s', '--size-max', dest='size_max', default=25,
@@ -268,7 +277,7 @@ def main(prog_args=None):
 
 
     try:
-        watcher = Watcher(path, opt.test_program, opt.debug, opt.custom_args, 
+        watcher = Watcher(path, opt.test_program, opt.cmd, opt.debug, opt.custom_args, 
             opt.ignore_dirs, opt.quiet)
         watcher_file_size = watcher.file_sizes()
         if watcher_file_size > opt.size_max:
