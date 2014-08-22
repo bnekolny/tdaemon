@@ -131,7 +131,7 @@ class Watcher(object):
                 sys.exit('tox is not available on your system. Please install it and try to run it again')
 
 
-    def get_cmd(self, test_cmd):
+    def get_cmd(self, test_cmd=None):
         """Returns the full command to be executed at runtime"""
 
         cmd = None
@@ -158,7 +158,7 @@ class Watcher(object):
             cmd = 'tox'
         elif self.test_program == 'cmd':
             cmd = test_cmd
-            if not cmd:
+            if not cmd or cmd is "":
                 raise InvalidTestProgram("There was no test command specified. Please provide a command to execute.")
 
         if not cmd:
